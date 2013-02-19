@@ -2,9 +2,12 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.sql.*;
-import java.util.Iterator;
-import java.util.List;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 
 // ODocument vs OIdentifiable
@@ -14,21 +17,21 @@ import java.util.List;
 
 public class RandomDB_SearchMySQL {
    	final String JDBC_DRIVER = "com.mysql.jdbc.Driver";  
-   	final String DB_URL = "jdbc:mysql://localhost/";
+   	final String DB_URL = "jdbc:mysql://localhost:3307/";
    	Connection db;
    	Statement stmt;
    	String DB_NAME;
 
 	//  Database credentials
-	static final String USER = "root";
-	static final String PASS = "root";
+	static final String USER = "lexgrid";
+	static final String PASS = "lexgrid";
    	
    	RandomDB_Environment env;
 	int iterations, depth;
 	String databaseDirectory, fileDirectory;
 	Long [] randomRID_list;
 
-	String performancePath = "C:/scratch/";
+	String performancePath = "/home/m113216/scratch/";
 	String performanceFile = "mysql_results.txt";
 	File performance;
 	FileWriter fstream;
@@ -38,7 +41,7 @@ public class RandomDB_SearchMySQL {
 	
 	public static void main(String[] args) {
 		int iterations = 10;
-		int minDepth = 7, maxDepth = 7;
+		int minDepth = 10, maxDepth = 10;
 		boolean print = false;
 		boolean storeEdges = false;
 		QueryType query = QueryType.TRAVERSE;
@@ -51,7 +54,8 @@ public class RandomDB_SearchMySQL {
 		long memory = Runtime.getRuntime().totalMemory();
 		
 		try{
-			for(int i=0; i < size.length; i++){
+//			for(int i=0; i < size.length; i++){
+			for(int i=0; i < 1; i++){
 				System.out.println("-----------------------------");
 				System.out.println("Connecting to " + size[i]);
 				boolean completed = true;
@@ -86,10 +90,11 @@ public class RandomDB_SearchMySQL {
 	public RandomDB_SearchMySQL(int i, int d, String size){
 		iterations = i;
 		depth = d;
-		databaseDirectory = "C:/scratch/OrientDB/orientdb-graphed/databases/randomDB_" + size;
-		fileDirectory = "C:/scratch/OrientDB/dataFiles/randomDB_" + size + "/";
+		databaseDirectory = "/home/m113216/orient/databases/randomDB_" + size;
+		fileDirectory = "/home/m113216/orient/datafiles/randomDB_" + size + "/";
 		env = new RandomDB_Environment(fileDirectory);
-		openDatabase();
+		DB_NAME = env.DB_NAME_PREFIX + env.DB_SIZE;
+//		openDatabase();
 		boolean addHeaders  = true;
 //		performance = new File(performancePath + size + "_" + performanceFile);
 		performance = new File(performancePath + performanceFile);
@@ -118,7 +123,6 @@ public class RandomDB_SearchMySQL {
 	}
 	
 	public void openDatabase(){
-		   DB_NAME = env.DB_NAME_PREFIX + env.DB_SIZE;
 		   try{
 			   Class.forName("com.mysql.jdbc.Driver");
 //			   System.out.println("Connecting to database...");
@@ -211,7 +215,7 @@ public class RandomDB_SearchMySQL {
 		for(int i=0; i < iterations; i++){
 			System.out.print((i + 1) + " ... ");
 			sql = createSQL_Query(query, randomRID_list[i], randomRID_list[i+1]);
-//			System.out.println(sql);
+			System.out.println(sql);
 			
 			try {
 				// Time query
@@ -219,7 +223,7 @@ public class RandomDB_SearchMySQL {
 				results = stmt.executeQuery(sql);
 				endTime = System.currentTimeMillis();
 
-				results.close();
+//				results.close();
 				sql = "Select found_rows()";
 				results = stmt.executeQuery(sql);
 				results.next();
@@ -292,39 +296,51 @@ public class RandomDB_SearchMySQL {
 		ResultSet rs;
 		try {
 //			stmt = db.createStatement();
-//			sql = "DROP TABLE IF EXISTS tempEdges";
-//			System.out.println(sql);
-//			stmt.execute(sql);
+			sql = "DROP TABLE IF EXISTS tempEdges";
+			System.out.println(sql);
+			stmt.execute(sql);
 			
-			sql = "show tables like 'tempEdges'";
-			rs = stmt.executeQuery(sql);
-			if(rs.next()){
-				// Do nothing, table exists.
-			}
-			else {
-				sql = "CREATE TABLE IF NOT EXISTS tempEdges ";
+//			sql = "show tables like 'tempEdges'";
+//			rs = stmt.executeQuery(sql);
+//			if(rs.next()){
+//				// Do nothing, table exists.
+//			}
+//			else {
+				sql = "CREATE TABLE tempEdges ";
 				sql += " (edgeID BIGINT NOT NULL, edgeIN BIGINT NOT NULL, edgeOUT BIGINT NOT NULL)"; 
 				
 				System.out.println(sql);
 				stmt.execute(sql);
 			
 				
-				sql = "show tables like 'edge%'";
-				rs.close();
-				rs = stmt.executeQuery(sql);
-				while(rs.next()){
-					System.out.println(rs.getString(1));
-					sql = "insert into tempEdges (edgeID, edgeIN, edgeOUT) select " + rs.getString(1) + "_ID, edgeIN, edgeOUT from ";
-					sql += rs.getString(1);
-	//				System.out.println(sql);
-					stmt.executeUpdate(sql);
+				sql = "show tables like 'Edge%'";
+//				rs.close();
+//				rs = stmt.executeQuery(sql);
+				/*
+				if(rs != null){
+					while(rs.next()){
+//						System.out.println(rs.getString(1));
+						sql = "insert into tempEdges (edgeID, edgeIN, edgeOUT) select " + rs.getString(1) + "_ID, edgeIN, edgeOUT from ";
+						sql += rs.getString(1);
+						System.out.println(sql);
+						stmt.executeUpdate(sql);
+					}
 				}
+				*/
+				
+				sql = "insert into tempEdges (edgeID, edgeIN, edgeOUT) select Edge_0_ID, edgeIN, edgeOUT from Edge_0";
+				System.out.println(sql);
+				stmt.executeUpdate(sql);
+				sql = "insert into tempEdges (edgeID, edgeIN, edgeOUT) select Edge_1_ID, edgeIN, edgeOUT from Edge_1";
+				System.out.println(sql);
+				stmt.executeUpdate(sql);
+				
 				System.out.println("Creating index for tempEdges");
 				sql = "create index idx_tempEdges on tempEdges (edgeIN, edgeOUT)";
 				stmt.executeUpdate(sql);
-				rs.close();
-			}			
-			rs.close();
+//				rs.close();
+//			}			
+//			rs.close();
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

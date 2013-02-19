@@ -5,7 +5,7 @@ import java.util.Scanner;
 
 
 public class RandomDB_Environment {
-	public String DEFAULT_DIR = "C:/scratch/";
+	public String DEFAULT_DIR = "/home/m113216/orient/";
 	public String DEFAULT_GRAPHDB = "OrientDB";
 	public String DEFAULT_DATAFILE_DIR = DEFAULT_GRAPHDB + "/dataFiles";
 	public String DEFAULT_DB_DIR = DEFAULT_GRAPHDB + "/databases";

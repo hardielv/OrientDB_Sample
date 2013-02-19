@@ -1,15 +1,19 @@
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Scanner;
-import java.sql.*;
 
 
 public class RandomDB_ImportDataFilesToMySQL {
 	   	// JDBC driver name and database URL
 	   	final String JDBC_DRIVER = "com.mysql.jdbc.Driver";  
-	   	final String DB_URL = "jdbc:mysql://localhost/";
+	   	final String DB_URL = "jdbc:mysql://localhost:3307/";
 	   	Connection db;
 	   	Statement stmt;
 	   	String DB_NAME;
@@ -20,14 +24,14 @@ public class RandomDB_ImportDataFilesToMySQL {
 		RandomDB_Environment env;
 
 		//  Database credentials
-		static final String USER = "root";
-		static final String PASS = "root";
+		static final String USER = "lexgrid";
+		static final String PASS = "lexgrid";
 	   
 	   public static void main(String[] args) {
 		   	Boolean importAll = true;
 		   	Boolean importEdges = true;
 		   	Boolean createKeys = true;
-			String fileDirectory = "C:/scratch/OrientDB/dataFiles/randomDB_small";
+			String fileDirectory = "/home/m113216/orient/datafiles/randomDB_huge";
 			File vFile, eFile, vfFile, efFile;
 			
 			RandomDB_ImportDataFilesToMySQL randomDB = new RandomDB_ImportDataFilesToMySQL(fileDirectory); 
@@ -455,8 +459,8 @@ public class RandomDB_ImportDataFilesToMySQL {
 //								System.out.println(totalRecords + " -- Commiting records to " + env.EDGE_PREFIX + i + ", " + recordCount[i]);						
 								pStatements[i].executeBatch();
 						}	
-						if((recordCount[i] + 1) % 100000 == 0){
-							System.out.println(totalRecords);						
+						if((totalRecords + 1) % 100000 == 0){
+							System.out.println(totalRecords + 1);						
 						}
 					}
 				}

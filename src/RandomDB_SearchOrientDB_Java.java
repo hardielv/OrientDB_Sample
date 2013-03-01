@@ -2,6 +2,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -47,10 +49,10 @@ public class RandomDB_SearchOrientDB_Java {
 	
 	public static void main(String[] args) {
 		int iterations = 100;
-		int minDepth = 1, maxDepth = 10;
+		int minDepth = 8, maxDepth = 10;
 				
-		String [] size = {"small", "medium", "large", "huge"}; 
-//		String [] size = {"small"}; 
+//		String [] size = {"small", "medium", "large", "huge"}; 
+		String [] size = {"large", "huge", "gigantic"}; 
 		QueryType [] queryList = {QueryType.TRAVERSE, QueryType.INTERSECTION, QueryType.UNION, QueryType.DIFFERENCE};
 //		QueryType [] queryList = {QueryType.TRAVERSE};
 		
@@ -92,7 +94,7 @@ public class RandomDB_SearchOrientDB_Java {
 		iterations = i;
 		depth = d;
 		databaseDirectory = "/home/m113216/orient/databases/randomDB_" + size;
-		fileDirectory = "/home/m113216/orient/datafiles/randomDB_" + size + "/";
+		fileDirectory = "/home/m113216/datafiles.HOLD/randomDB_" + size + "/";
 		env = new RandomDB_Environment(fileDirectory);
 		DB_NAME = env.DB_NAME_PREFIX + size;
 		boolean addHeaders  = true;
@@ -221,26 +223,35 @@ public class RandomDB_SearchOrientDB_Java {
 	
 	private boolean timePerformance(QueryType query){
 		HashSet<String> results = null;
+		ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+		
+		String sql, sql_traverse1, sql_traverse2;
 		
 		long [] times = new long[iterations];
 		int numRecords = 0;
-		
-		String sql, sql_traverse1, sql_traverse2;
 		long startTime = 0, endTime = 0;
 		int minutes, seconds;
+		long totalTimes = 0;
+
+		long [] cpuTimes = new long[iterations];
+		long cpuStart, cpuEnd;
+		int cpuMin, cpuSec;
+		long cpuTotalTimes = 0;
+		
 		
 		System.out.println("Timing " + stringQueryType(query) + " of graph with " + env.TOTAL_VERTICES + " vertices");
 		printToFile(", " + env.TOTAL_VERTICES + ", " + env.TOTAL_EDGES);
-		long totalTimes = 0;
 		boolean outOfMemory = false;
 		for(int i=0; i < iterations; i++){
 			System.out.print((i + 1) + " ... ");
 			try{
 				// Time query
+				cpuStart = threadBean.getCurrentThreadCpuTime();
 				startTime = System.currentTimeMillis();
 //				results = db.query(new OSQLSynchQuery<OIdentifiable>(sql));
 				results = runQuery(query, i);
 				endTime = System.currentTimeMillis();
+				cpuEnd = threadBean.getCurrentThreadCpuTime();
 	
 				if(results != null)	{
 					numRecords += results.size();
@@ -256,19 +267,30 @@ public class RandomDB_SearchOrientDB_Java {
 			minutes = (int) (times[i] / (1000 * 60));
 			seconds = (int) ((times[i] / 1000) % 60);
 			totalTimes += times[i];
+			
+			cpuTimes[i] = (cpuEnd - cpuStart)/1000000;
+			cpuMin = (int) (cpuTimes[i] / (1000 * 60));
+			cpuSec = (int) ((cpuTimes[i] / 1000) % 60);
+			cpuTotalTimes += cpuTimes[i];
 		}
 		System.out.println();
 		
 		if(!outOfMemory){
 			long avgTime = totalTimes / iterations;
+			long cpuAvg = cpuTotalTimes / iterations;
 			minutes = (int) (avgTime / (1000 * 60));
 			seconds = (int) ((avgTime / 1000) % 60);
+			cpuMin = (int) (cpuAvg / (1000 * 60));
+			cpuSec = (int) ((cpuAvg / 1000) % 60);
 			
 			System.out.println("Average #records: " + (numRecords / iterations) + " of " + env.TOTAL_VERTICES);
 			System.out.println(String.format("Average Time: %d ms or (%d min, %d sec)", avgTime, minutes, seconds)); 
 
 			printToFile(", " + (numRecords / iterations));
-			printToFile(", " + avgTime + ", " + minutes + ", " + seconds + "\n"); 
+			printToFile(", " + avgTime + ", " + minutes + ", " + seconds);
+			
+			printToFile(", " + cpuAvg + ", " + cpuMin + ", " + cpuSec + "\n");
+			
 		}
 		try {
 			out.flush();

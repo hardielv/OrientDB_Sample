@@ -31,7 +31,7 @@ public class RandomDB_ImportDataFilesToMySQL {
 		   	Boolean importAll = true;
 		   	Boolean importEdges = true;
 		   	Boolean createKeys = true;
-			String fileDirectory = "/home/m113216/orient/datafiles/randomDB_huge";
+			String fileDirectory = "/home/m113216/datafiles.HOLD/randomDB_medium";
 			File vFile, eFile, vfFile, efFile;
 			
 			RandomDB_ImportDataFilesToMySQL randomDB = new RandomDB_ImportDataFilesToMySQL(fileDirectory); 

@@ -4,6 +4,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
+import java.lang.management.ThreadMXBean;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -37,8 +38,8 @@ public class RandomDB_SearchMySQL_Java {
 	String performanceFile = DB_TYPE + "_results.txt";
 	String performancePath = "/home/m113216/scratch/";
 
-	final String HEADERS = "HeapSize, DB_Name, Query, Iterations, Depth, #V, #E, #Processors, LoadBefore, LoadAfter, AvgRecs, AvgMS, AvgMin, AvgSec\n";
-	
+//	final String HEADERS = "HeapSize, DB_Name, Query, Iterations, Depth, #V, #E, #Processors, LoadBefore, LoadAfter, AvgRecs, AvgMS, AvgMin, AvgSec\n";
+	final String HEADERS = "HeapSize, DB_Name, Query, Iterations, Depth, #V, #E, AvgRecs, AvgMS, AvgMin, AvgSec\n";
 	RandomDB_Environment env;
 	String databaseDirectory, fileDirectory;
 	Long [] randomRID_list;
@@ -51,15 +52,15 @@ public class RandomDB_SearchMySQL_Java {
 	public enum QueryType {TRAVERSE, UNION, INTERSECTION, DIFFERENCE, SYMMETRIC_DIFFERENCE};
 	
 	public static void main(String[] args) {
-		int iterations = 10;
-		int minDepth = 1, maxDepth = 10;
+		int iterations = 5;
+		int minDepth = 10, maxDepth = 10;
 		boolean print = false;
 		boolean storeEdges = false;
 		
-		String [] size = {"small", "medium", "large", "huge"}; 
-//		String [] size = {"small"}; 
-		QueryType [] queryList = {QueryType.TRAVERSE, QueryType.INTERSECTION, QueryType.UNION, QueryType.DIFFERENCE};
-//		QueryType [] queryList = {QueryType.TRAVERSE};
+//		String [] size = {"small", "medium", "large", "huge"}; 
+		String [] size = {"large"}; 
+//		QueryType [] queryList = {QueryType.TRAVERSE, QueryType.INTERSECTION, QueryType.UNION, QueryType.DIFFERENCE};
+		QueryType [] queryList = {QueryType.TRAVERSE};
 		int sizeIndex = 0;
 		
 		RandomDB_SearchMySQL_Java searchDB;
@@ -74,18 +75,18 @@ public class RandomDB_SearchMySQL_Java {
 					for(int depth=minDepth; completed && depth <= maxDepth; depth++){
 						searchDB = new RandomDB_SearchMySQL_Java(iterations, depth, size[i]);
 						
-						// NEEDED ONLY FOR MYSQL
-						if(storeEdges){
-							System.out.println("Collecting edges to tempEdges");
-							searchDB.createEdgeTable();
-						}
-						// --------------------
 							
 						System.out.print("Iterations = " + iterations + ", depth = " + depth);
 						System.out.println(", Database: " + searchDB.env.DB_PATH);
 						searchDB.printToFile(memory + ", " + searchDB.DB_NAME + ", " + searchDB.stringQueryType(queryList[k]) + ", " + iterations + ", " + depth);
 						
 						searchDB.openDatabase();	
+						// NEEDED ONLY FOR MYSQL
+						if(storeEdges){
+							System.out.println("Collecting edges to tempEdges");
+							searchDB.createEdgeTable();
+						}
+						// --------------------
 						searchDB.collectRandomRIDs();
 						completed = searchDB.timePerformance(queryList[k], depth);
 						
@@ -106,8 +107,8 @@ public class RandomDB_SearchMySQL_Java {
 	public RandomDB_SearchMySQL_Java(int i, int d, String size){
 		iterations = i;
 		depth = d;
-		databaseDirectory = "/home/m113216/orient/databases/randomDB_" + size;
-		fileDirectory = "/home/m113216/orient/datafiles/randomDB_" + size + "/";
+//		databaseDirectory = "/home/m113216/orient/databases/randomDB_" + size;
+		fileDirectory = "/home/m113216/datafiles.HOLD/randomDB_" + size + "/";
 		env = new RandomDB_Environment(fileDirectory);
 		DB_NAME = env.DB_NAME_PREFIX + env.DB_SIZE;
 		
@@ -274,75 +275,79 @@ public class RandomDB_SearchMySQL_Java {
 //		HashMap<Long, Object> results;
 		HashSet<Long> results = null;
 		
-		long [] times = new long[iterations];
-		int numRecords = 0;
+		ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
 		
 		String sql, sql_traverse1, sql_traverse2;
-		long startTime = 0, endTime = 0;
-		double cpuBefore = 0, cpuAfter = 0;
-		int minutes, seconds;
 		
-		MBeanServerConnection mbsc = ManagementFactory.getPlatformMBeanServer();
-		OperatingSystemMXBean osBean;
-		boolean outOfMemory = false;
+		long [] times = new long[iterations];
+		int numRecords = 0;
+		long startTime = 0, endTime = 0;
+		int minutes, seconds;
 		long totalTimes = 0;
 
-		try {
-			osBean = ManagementFactory.newPlatformMXBeanProxy(mbsc, ManagementFactory.OPERATING_SYSTEM_MXBEAN_NAME, OperatingSystemMXBean.class);
-			int numProcessors = osBean.getAvailableProcessors();
-			
-			totalTimes = 0;
-			outOfMemory = false;
-			cpuBefore = osBean.getSystemLoadAverage();
+		long [] cpuTimes = new long[iterations];
+		long cpuStart, cpuEnd;
+		int cpuMin, cpuSec;
+		long cpuTotalTimes = 0;
+		
+		
+		
+		
 
-			System.out.println("Timing " + stringQueryType(query) + " of graph with " + env.TOTAL_VERTICES + " vertices");
-			printToFile(", " + env.TOTAL_VERTICES + ", " + env.TOTAL_EDGES + ", " + numProcessors + ", " + cpuBefore);
-
-			for(int i=0; i < iterations; i++){
-				System.out.print((i + 1) + " ... ");			
-				try {
-					// Time query
-					startTime = System.currentTimeMillis();
-					results = runQuery(query, i);
-	//				results = traverseJava(randomRID_list[i], 0, depth);
-					endTime = System.currentTimeMillis();
+		System.out.println("Timing " + stringQueryType(query) + " of graph with " + env.TOTAL_VERTICES + " vertices");
+		printToFile(", " + env.TOTAL_VERTICES + ", " + env.TOTAL_EDGES);
+		boolean outOfMemory = false;
+		for(int i=0; i < iterations; i++){
+			System.out.print((i + 1) + " ... ");			
+			try {
+				// Time query
+				cpuStart = threadBean.getCurrentThreadCpuTime();
+				startTime = System.currentTimeMillis();
+				//				results = traverseJava(randomRID_list[i], 0, depth);
+				results = runQuery(query, i);
+				endTime = System.currentTimeMillis();
+				cpuEnd = threadBean.getCurrentThreadCpuTime();
 					
-					if(results != null)	{
-						numRecords += results.size();
-					}
-					
-	
-	//				numRecords += countNodes(results);	
-	//				printNodes(results, 0);
-				} catch (OutOfMemoryError oome){
-					System.out.println("Out of memory");
-					outOfMemory = true;
-					break;
+				if(results != null)	{
+					numRecords += results.size();
 				}
-				
-				times[i] = endTime - startTime;
-				minutes = (int) (times[i] / (1000 * 60));
-				seconds = (int) ((times[i] / 1000) % 60);
-				totalTimes += times[i];
-			}
-			cpuAfter = osBean.getSystemLoadAverage();
-
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
+					
+			} catch (OutOfMemoryError oome){
+				System.out.println("Out of memory");
+				outOfMemory = true;
+				break;
+			}		
+			times[i] = endTime - startTime;
+			minutes = (int) (times[i] / (1000 * 60));
+			seconds = (int) ((times[i] / 1000) % 60);
+			totalTimes += times[i];
+			
+			cpuTimes[i] = (cpuEnd - cpuStart)/1000000;
+			cpuMin = (int) (cpuTimes[i] / (1000 * 60));
+			cpuSec = (int) ((cpuTimes[i] / 1000) % 60);
+			cpuTotalTimes += cpuTimes[i];
 		}
+		
 		System.out.println();
 		
 		if(!outOfMemory){
 			long avgTime = totalTimes / iterations;
+			long cpuAvg = cpuTotalTimes / iterations;
 			minutes = (int) (avgTime / (1000 * 60));
 			seconds = (int) ((avgTime / 1000) % 60);
-//			#Processors, LoadBefore, LoadAfter, #V
+			cpuMin = (int) (cpuAvg / (1000 * 60));
+			cpuSec = (int) ((cpuAvg / 1000) % 60);
+
+			//			#Processors, LoadBefore, LoadAfter, #V
 			System.out.println("Average #records: " + (numRecords / iterations) + " with total =  " + env.TOTAL_VERTICES);
 			System.out.println(String.format("Average Time: %d ms or (%d min, %d sec)\n", avgTime, minutes, seconds)); 
 	
-			printToFile(", " + cpuAfter + ", " + (numRecords / iterations));
-			printToFile(", " + avgTime + ", " + minutes + ", " + seconds + "\n"); 
+//			printToFile(", " + cpuAfter + ", " + (numRecords / iterations));
+//			printToFile(", " + avgTime + ", " + minutes + ", " + seconds + "\n"); 
+			printToFile(", " + (numRecords / iterations));
+			printToFile(", " + avgTime + ", " + minutes + ", " + seconds);
+			
+			printToFile(", " + cpuAvg + ", " + cpuMin + ", " + cpuSec + "\n");
 		}
 		try {
 			out.flush();
@@ -465,7 +470,10 @@ public class RandomDB_SearchMySQL_Java {
 //			stmt = db.createStatement();
 			sql = "DROP TABLE IF EXISTS tempEdges";
 			System.out.println(sql);
-			stmt.execute(sql);
+			
+			Statement stmt2 = db.createStatement();
+			
+			stmt2.execute(sql);
 			
 //			sql = "show tables like 'tempEdges'";
 //			rs = stmt.executeQuery(sql);
@@ -477,7 +485,7 @@ public class RandomDB_SearchMySQL_Java {
 				sql += " (edgeID BIGINT NOT NULL, edgeIN BIGINT NOT NULL, edgeOUT BIGINT NOT NULL)"; 
 				
 				System.out.println(sql);
-				stmt.execute(sql);
+				stmt2.execute(sql);
 			
 				
 				sql = "show tables like 'Edge%'";
@@ -497,17 +505,18 @@ public class RandomDB_SearchMySQL_Java {
 				
 				sql = "insert into tempEdges (edgeID, edgeIN, edgeOUT) select Edge_0_ID, edgeIN, edgeOUT from Edge_0";
 				System.out.println(sql);
-				stmt.executeUpdate(sql);
+				stmt2.executeUpdate(sql);
 				sql = "insert into tempEdges (edgeID, edgeIN, edgeOUT) select Edge_1_ID, edgeIN, edgeOUT from Edge_1";
 				System.out.println(sql);
-				stmt.executeUpdate(sql);
+				stmt2.executeUpdate(sql);
 				
 				System.out.println("Creating index for tempEdges");
 				sql = "create index idx_tempEdges on tempEdges (edgeIN, edgeOUT)";
-				stmt.executeUpdate(sql);
+				stmt2.executeUpdate(sql);
 //				rs.close();
 //			}			
 //			rs.close();
+			stmt2.close();
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
